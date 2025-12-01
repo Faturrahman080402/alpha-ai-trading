@@ -1,12 +1,132 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState, useEffect } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { TrendingUp, TrendingDown, Activity, Brain, Zap, Shield, BarChart3, Wallet } from "lucide-react";
+import PriceChart from "@/components/trading/PriceChart";
+import PortfolioOverview from "@/components/trading/PortfolioOverview";
+import AIPredictions from "@/components/trading/AIPredictions";
+import ActiveTrades from "@/components/trading/ActiveTrades";
+import MarketOverview from "@/components/trading/MarketOverview";
+import QuickTrade from "@/components/trading/QuickTrade";
 
 const Index = () => {
+  const [selectedAsset, setSelectedAsset] = useState("BTCUSDT");
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center">
+                  <Brain className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold">AI Trading Platform</h1>
+                  <p className="text-xs text-muted-foreground">Intelligent Trading System</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <Badge variant="outline" className="gap-2">
+                <div className="w-2 h-2 rounded-full bg-success animate-pulse-glow" />
+                AI Active
+              </Badge>
+              <Button variant="outline" size="sm">
+                <Wallet className="w-4 h-4 mr-2" />
+                $124,580.50
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Dashboard */}
+      <main className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left Column - Portfolio & AI */}
+          <div className="lg:col-span-3 space-y-6">
+            <PortfolioOverview />
+            <AIPredictions />
+          </div>
+
+          {/* Center Column - Chart & Trading */}
+          <div className="lg:col-span-6 space-y-6">
+            <Card className="p-6 bg-card border-border">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold font-mono">{selectedAsset}</h2>
+                  <p className="text-sm text-muted-foreground">Bitcoin / Tether</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold font-mono text-success">$43,284.50</p>
+                  <p className="text-sm text-success flex items-center justify-end gap-1">
+                    <TrendingUp className="w-4 h-4" />
+                    +2.45% ($1,034.20)
+                  </p>
+                </div>
+              </div>
+              <PriceChart symbol={selectedAsset} />
+            </Card>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <QuickTrade />
+              <MarketOverview onSelectAsset={setSelectedAsset} />
+            </div>
+          </div>
+
+          {/* Right Column - Active Trades */}
+          <div className="lg:col-span-3">
+            <ActiveTrades />
+          </div>
+        </div>
+
+        {/* Feature Highlights */}
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card className="p-6 bg-gradient-to-br from-primary/10 to-purple-600/10 border-primary/20">
+            <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
+              <Brain className="w-6 h-6 text-primary" />
+            </div>
+            <h3 className="font-semibold mb-2">AI-Powered Predictions</h3>
+            <p className="text-sm text-muted-foreground">
+              Advanced LSTM & transformer models for accurate market forecasting
+            </p>
+          </Card>
+
+          <Card className="p-6 bg-gradient-to-br from-success/10 to-emerald-600/10 border-success/20">
+            <div className="w-12 h-12 rounded-lg bg-success/20 flex items-center justify-center mb-4">
+              <Zap className="w-6 h-6 text-success" />
+            </div>
+            <h3 className="font-semibold mb-2">Automated Trading</h3>
+            <p className="text-sm text-muted-foreground">
+              Execute trades automatically based on AI signals with risk management
+            </p>
+          </Card>
+
+          <Card className="p-6 bg-gradient-to-br from-danger/10 to-red-600/10 border-danger/20">
+            <div className="w-12 h-12 rounded-lg bg-danger/20 flex items-center justify-center mb-4">
+              <Shield className="w-6 h-6 text-danger" />
+            </div>
+            <h3 className="font-semibold mb-2">Risk Management</h3>
+            <p className="text-sm text-muted-foreground">
+              Built-in stop-loss, take-profit, and position sizing algorithms
+            </p>
+          </Card>
+
+          <Card className="p-6 bg-gradient-to-br from-yellow-500/10 to-orange-600/10 border-yellow-500/20">
+            <div className="w-12 h-12 rounded-lg bg-yellow-500/20 flex items-center justify-center mb-4">
+              <BarChart3 className="w-6 h-6 text-yellow-500" />
+            </div>
+            <h3 className="font-semibold mb-2">Real-time Analytics</h3>
+            <p className="text-sm text-muted-foreground">
+              Live performance tracking with comprehensive trading analytics
+            </p>
+          </Card>
+        </div>
+      </main>
     </div>
   );
 };
