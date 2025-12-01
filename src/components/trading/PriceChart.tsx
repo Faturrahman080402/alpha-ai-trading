@@ -6,45 +6,78 @@ interface PriceChartProps {
   symbol: string;
 }
 
+interface CandleData {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  time: number;
+}
+
 const PriceChart = ({ symbol }: PriceChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [timeframe, setTimeframe] = useState("1H");
-  const [priceData, setPriceData] = useState<number[]>([]);
+  const [candleData, setCandleData] = useState<CandleData[]>([]);
 
   useEffect(() => {
-    // Generate realistic price data
-    const generatePriceData = () => {
+    // Generate realistic candlestick data
+    const generateCandleData = () => {
       const basePrice = 43000;
-      const data: number[] = [];
-      let price = basePrice;
+      const data: CandleData[] = [];
+      let currentPrice = basePrice;
 
-      for (let i = 0; i < 100; i++) {
-        const change = (Math.random() - 0.48) * 200;
-        price = Math.max(price + change, basePrice * 0.95);
-        data.push(price);
+      for (let i = 0; i < 50; i++) {
+        const open = currentPrice;
+        const change = (Math.random() - 0.48) * 300;
+        const close = Math.max(open + change, basePrice * 0.95);
+        
+        const high = Math.max(open, close) + Math.random() * 150;
+        const low = Math.min(open, close) - Math.random() * 150;
+
+        data.push({
+          open,
+          high,
+          low,
+          close,
+          time: Date.now() - (50 - i) * 60000,
+        });
+        
+        currentPrice = close;
       }
       return data;
     };
 
-    setPriceData(generatePriceData());
+    setCandleData(generateCandleData());
 
-    // Update price every 2 seconds
+    // Update with new candle every 3 seconds
     const interval = setInterval(() => {
-      setPriceData((prev) => {
+      setCandleData((prev) => {
         const newData = [...prev];
-        const lastPrice = newData[newData.length - 1];
-        const change = (Math.random() - 0.48) * 100;
-        newData.push(Math.max(lastPrice + change, 40000));
-        return newData.slice(-100);
+        const lastCandle = newData[newData.length - 1];
+        const open = lastCandle.close;
+        const change = (Math.random() - 0.48) * 200;
+        const close = Math.max(open + change, 40000);
+        
+        const high = Math.max(open, close) + Math.random() * 100;
+        const low = Math.min(open, close) - Math.random() * 100;
+
+        newData.push({
+          open,
+          high,
+          low,
+          close,
+          time: Date.now(),
+        });
+        return newData.slice(-50);
       });
-    }, 2000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [symbol]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || priceData.length === 0) return;
+    if (!canvas || candleData.length === 0) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -55,9 +88,10 @@ const PriceChart = ({ symbol }: PriceChartProps) => {
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Calculate min and max prices
-    const minPrice = Math.min(...priceData);
-    const maxPrice = Math.max(...priceData);
+    // Calculate min and max prices from all OHLC values
+    const allPrices = candleData.flatMap(c => [c.high, c.low]);
+    const minPrice = Math.min(...allPrices);
+    const maxPrice = Math.max(...allPrices);
     const priceRange = maxPrice - minPrice;
 
     // Draw grid
@@ -72,39 +106,47 @@ const PriceChart = ({ symbol }: PriceChartProps) => {
       ctx.stroke();
     }
 
-    // Draw price line
-    const gradient = ctx.createLinearGradient(0, 0, width, 0);
-    gradient.addColorStop(0, "rgba(59, 130, 246, 0.8)");
-    gradient.addColorStop(1, "rgba(147, 51, 234, 0.8)");
+    // Calculate candle width and spacing
+    const candleWidth = Math.max(2, (width / candleData.length) * 0.6);
+    const candleSpacing = width / candleData.length;
 
-    ctx.strokeStyle = gradient;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
+    // Draw candlesticks
+    candleData.forEach((candle, index) => {
+      const x = index * candleSpacing + candleSpacing / 2;
+      
+      // Calculate y positions
+      const yHigh = height - ((candle.high - minPrice) / priceRange) * height;
+      const yLow = height - ((candle.low - minPrice) / priceRange) * height;
+      const yOpen = height - ((candle.open - minPrice) / priceRange) * height;
+      const yClose = height - ((candle.close - minPrice) / priceRange) * height;
 
-    priceData.forEach((price, index) => {
-      const x = (width / (priceData.length - 1)) * index;
-      const y = height - ((price - minPrice) / priceRange) * height;
+      // Determine candle color (green for bullish, red for bearish)
+      const isBullish = candle.close >= candle.open;
+      const color = isBullish ? "rgba(34, 197, 94, 0.9)" : "rgba(239, 68, 68, 0.9)";
+      const borderColor = isBullish ? "rgba(34, 197, 94, 1)" : "rgba(239, 68, 68, 1)";
 
-      if (index === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
+      // Draw wick (high-low line)
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, yHigh);
+      ctx.lineTo(x, yLow);
+      ctx.stroke();
+
+      // Draw candle body (open-close rectangle)
+      const bodyTop = Math.min(yOpen, yClose);
+      const bodyHeight = Math.abs(yClose - yOpen) || 1; // Minimum height of 1px for doji candles
+      
+      ctx.fillStyle = color;
+      ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+      
+      // Draw candle border
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
     });
 
-    ctx.stroke();
-
-    // Fill area under line
-    const areaGradient = ctx.createLinearGradient(0, 0, 0, height);
-    areaGradient.addColorStop(0, "rgba(59, 130, 246, 0.2)");
-    areaGradient.addColorStop(1, "rgba(59, 130, 246, 0)");
-
-    ctx.lineTo(width, height);
-    ctx.lineTo(0, height);
-    ctx.fillStyle = areaGradient;
-    ctx.fill();
-
-  }, [priceData]);
+  }, [candleData]);
 
   return (
     <div>
