@@ -1,17 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Activity, Brain, Zap, Shield, BarChart3, Wallet } from "lucide-react";
+import { TrendingUp, Brain, Zap, Shield, BarChart3, Wallet, LogIn } from "lucide-react";
+import { Link } from "react-router-dom";
 import PriceChart from "@/components/trading/PriceChart";
 import PortfolioOverview from "@/components/trading/PortfolioOverview";
 import AIPredictions from "@/components/trading/AIPredictions";
 import ActiveTrades from "@/components/trading/ActiveTrades";
 import MarketOverview from "@/components/trading/MarketOverview";
 import QuickTrade from "@/components/trading/QuickTrade";
+import { useAuth } from "@/hooks/useAuth";
+import { usePortfolio } from "@/hooks/usePortfolio";
+import { useProfile } from "@/hooks/useProfile";
 
 const Index = () => {
-  const [selectedAsset, setSelectedAsset] = useState("BTCUSDT");
+  const [selectedAsset, setSelectedAsset] = useState("BTC/USDT");
+  const { user, signOut } = useAuth();
+  const { data: portfolio } = usePortfolio();
+  const { data: profile } = useProfile();
+
+  const isDemo = profile?.trading_mode === "demo";
+  const balance = isDemo ? portfolio?.demo_balance : portfolio?.balance;
 
   return (
     <div className="min-h-screen bg-background">
@@ -35,10 +45,25 @@ const Index = () => {
                 <div className="w-2 h-2 rounded-full bg-success animate-pulse-glow" />
                 AI Active
               </Badge>
-              <Button variant="outline" size="sm">
-                <Wallet className="w-4 h-4 mr-2" />
-                $124,580.50
-              </Button>
+              {user ? (
+                <>
+                  {isDemo && <Badge variant="secondary">Demo Mode</Badge>}
+                  <Button variant="outline" size="sm">
+                    <Wallet className="w-4 h-4 mr-2" />
+                    ${(balance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={signOut}>
+                    Sign Out
+                  </Button>
+                </>
+              ) : (
+                <Button asChild size="sm">
+                  <Link to="/auth">
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Sign In
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -59,7 +84,13 @@ const Index = () => {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-2xl font-bold font-mono">{selectedAsset}</h2>
-                  <p className="text-sm text-muted-foreground">Bitcoin / Tether</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedAsset === "BTC/USDT" ? "Bitcoin / Tether" : 
+                     selectedAsset === "ETH/USDT" ? "Ethereum / Tether" :
+                     selectedAsset === "SOL/USDT" ? "Solana / Tether" :
+                     selectedAsset === "BNB/USDT" ? "BNB / Tether" :
+                     selectedAsset === "XRP/USDT" ? "XRP / Tether" : selectedAsset}
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold font-mono text-success">$43,284.50</p>
@@ -73,7 +104,7 @@ const Index = () => {
             </Card>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <QuickTrade />
+              <QuickTrade symbol={selectedAsset} />
               <MarketOverview onSelectAsset={setSelectedAsset} />
             </div>
           </div>
