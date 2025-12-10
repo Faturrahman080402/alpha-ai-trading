@@ -13,6 +13,10 @@ const INITIAL_PRICES: Record<string, LivePrice> = {
   "ETH/USDT": { symbol: "ETH/USDT", price: 0, change: 0, volume: "—", lastUpdate: 0 },
   "BNB/USDT": { symbol: "BNB/USDT", price: 0, change: 0, volume: "—", lastUpdate: 0 },
   "SOL/USDT": { symbol: "SOL/USDT", price: 0, change: 0, volume: "—", lastUpdate: 0 },
+  "XRP/USDT": { symbol: "XRP/USDT", price: 0, change: 0, volume: "—", lastUpdate: 0 },
+  "DOGE/USDT": { symbol: "DOGE/USDT", price: 0, change: 0, volume: "—", lastUpdate: 0 },
+  "ADA/USDT": { symbol: "ADA/USDT", price: 0, change: 0, volume: "—", lastUpdate: 0 },
+  "AVAX/USDT": { symbol: "AVAX/USDT", price: 0, change: 0, volume: "—", lastUpdate: 0 },
 };
 
 const WS_URL = `wss://dlveppmpsaosloyiiema.supabase.co/functions/v1/binance-prices`;
