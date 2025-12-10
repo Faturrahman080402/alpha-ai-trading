@@ -1,47 +1,23 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, X, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, X, Loader2, Wifi } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActiveTrades, useCloseTrade, Trade } from "@/hooks/useTrades";
 import { useAuth } from "@/hooks/useAuth";
-import { useState, useEffect } from "react";
-
-// Simulated current prices - in a real app, these would come from a WebSocket
-const simulatedPrices: Record<string, number> = {
-  "BTC/USDT": 43284.50,
-  "ETH/USDT": 2298.45,
-  "SOL/USDT": 99.20,
-  "BNB/USDT": 312.80,
-  "XRP/USDT": 0.62,
-};
+import { useLivePrices } from "@/hooks/useLivePrices";
+import { useState } from "react";
 
 const ActiveTrades = () => {
   const { user } = useAuth();
   const { data: trades, isLoading } = useActiveTrades();
   const closeTrade = useCloseTrade();
   const [closingTradeId, setClosingTradeId] = useState<string | null>(null);
-  const [currentPrices, setCurrentPrices] = useState(simulatedPrices);
-
-  // Simulate price updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentPrices(prev => {
-        const updated = { ...prev };
-        Object.keys(updated).forEach(symbol => {
-          const change = (Math.random() - 0.5) * 0.002;
-          updated[symbol] = updated[symbol] * (1 + change);
-        });
-        return updated;
-      });
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
+  const { prices, isConnected } = useLivePrices();
 
   const handleCloseTrade = async (trade: Trade) => {
     setClosingTradeId(trade.id);
-    const currentPrice = currentPrices[trade.symbol] ?? Number(trade.entry_price);
+    const currentPrice = prices[trade.symbol]?.price ?? Number(trade.entry_price);
     const multiplier = trade.trade_type === "buy" ? 1 : -1;
     const profitLoss = (currentPrice - Number(trade.entry_price)) * Number(trade.quantity) * multiplier;
 
@@ -57,7 +33,7 @@ const ActiveTrades = () => {
   };
 
   const calculatePnL = (trade: Trade) => {
-    const currentPrice = currentPrices[trade.symbol] ?? Number(trade.entry_price);
+    const currentPrice = prices[trade.symbol]?.price ?? Number(trade.entry_price);
     const multiplier = trade.trade_type === "buy" ? 1 : -1;
     const pnl = (currentPrice - Number(trade.entry_price)) * Number(trade.quantity) * multiplier;
     const pnlPercent = (pnl / (Number(trade.entry_price) * Number(trade.quantity))) * 100;
@@ -99,7 +75,10 @@ const ActiveTrades = () => {
   return (
     <Card className="p-6 bg-card border-border h-fit sticky top-24">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Active Trades</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold">Active Trades</h3>
+          {isConnected && <Wifi className="w-3.5 h-3.5 text-success" />}
+        </div>
         <Badge variant="outline">{activeTrades.length} Open</Badge>
       </div>
 
