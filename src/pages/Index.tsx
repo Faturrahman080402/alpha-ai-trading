@@ -13,15 +13,22 @@ import QuickTrade from "@/components/trading/QuickTrade";
 import { useAuth } from "@/hooks/useAuth";
 import { usePortfolio } from "@/hooks/usePortfolio";
 import { useProfile } from "@/hooks/useProfile";
+import { useRealtimeTrades } from "@/hooks/useRealtimeTrades";
+import { useLivePrices } from "@/hooks/useLivePrices";
 
 const Index = () => {
   const [selectedAsset, setSelectedAsset] = useState("BTC/USDT");
   const { user, signOut } = useAuth();
   const { data: portfolio } = usePortfolio();
   const { data: profile } = useProfile();
+  const { getPrice } = useLivePrices();
+  
+  // Enable realtime trade updates
+  useRealtimeTrades();
 
   const isDemo = profile?.trading_mode === "demo";
   const balance = isDemo ? portfolio?.demo_balance : portfolio?.balance;
+  const currentPrice = getPrice(selectedAsset);
 
   return (
     <div className="min-h-screen bg-background">
@@ -93,10 +100,12 @@ const Index = () => {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-bold font-mono text-success">$43,284.50</p>
-                  <p className="text-sm text-success flex items-center justify-end gap-1">
+                  <p className={`text-2xl font-bold font-mono ${currentPrice && currentPrice.change >= 0 ? "text-success" : "text-danger"}`}>
+                    ${currentPrice?.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "—"}
+                  </p>
+                  <p className={`text-sm flex items-center justify-end gap-1 ${currentPrice && currentPrice.change >= 0 ? "text-success" : "text-danger"}`}>
                     <TrendingUp className="w-4 h-4" />
-                    +2.45% ($1,034.20)
+                    {currentPrice ? `${currentPrice.change >= 0 ? "+" : ""}${currentPrice.change.toFixed(2)}%` : "—"}
                   </p>
                 </div>
               </div>

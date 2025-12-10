@@ -1,21 +1,37 @@
 import { Card } from "@/components/ui/card";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, Wifi, WifiOff } from "lucide-react";
+import { useLivePrices } from "@/hooks/useLivePrices";
 
 interface MarketOverviewProps {
   onSelectAsset: (symbol: string) => void;
 }
 
 const MarketOverview = ({ onSelectAsset }: MarketOverviewProps) => {
-  const markets = [
-    { symbol: "BTCUSDT", name: "Bitcoin", price: 43284.50, change: 2.45, volume: "28.5B" },
-    { symbol: "ETHUSDT", name: "Ethereum", price: 2298.45, change: 1.82, volume: "14.2B" },
-    { symbol: "BNBUSDT", name: "BNB", price: 312.85, change: -0.54, volume: "1.8B" },
-    { symbol: "SOLUSDT", name: "Solana", price: 99.20, change: 4.12, volume: "2.1B" },
-  ];
+  const { prices, isConnected } = useLivePrices();
+
+  const markets = Object.values(prices).map((p) => ({
+    symbol: p.symbol,
+    name: p.symbol.split("/")[0],
+    price: p.price,
+    change: p.change,
+    volume: p.volume,
+  }));
 
   return (
     <Card className="p-6 bg-card border-border">
-      <h3 className="text-lg font-semibold mb-4">Market Overview</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold">Market Overview</h3>
+        <div className="flex items-center gap-1.5">
+          {isConnected ? (
+            <Wifi className="w-3.5 h-3.5 text-success" />
+          ) : (
+            <WifiOff className="w-3.5 h-3.5 text-danger" />
+          )}
+          <span className="text-xs text-muted-foreground">
+            {isConnected ? "Live" : "Offline"}
+          </span>
+        </div>
+      </div>
       <div className="space-y-3">
         {markets.map((market) => (
           <button
