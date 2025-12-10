@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Brain, Zap, Shield, BarChart3, Wallet, LogIn } from "lucide-react";
+import { TrendingUp, Brain, Zap, Shield, BarChart3, Wallet, LogIn, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import PriceChart from "@/components/trading/PriceChart";
 import PortfolioOverview from "@/components/trading/PortfolioOverview";
@@ -58,6 +58,11 @@ const Index = () => {
                   <Button variant="outline" size="sm">
                     <Wallet className="w-4 h-4 mr-2" />
                     ${(balance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Button>
+                  <Button variant="ghost" size="icon" asChild>
+                    <Link to="/settings">
+                      <Settings className="w-4 h-4" />
+                    </Link>
                   </Button>
                   <Button variant="ghost" size="sm" onClick={signOut}>
                     Sign Out
