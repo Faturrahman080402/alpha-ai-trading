@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 export interface LivePrice {
   symbol: string;
@@ -9,50 +9,112 @@ export interface LivePrice {
 }
 
 const INITIAL_PRICES: Record<string, LivePrice> = {
-  "BTC/USDT": { symbol: "BTC/USDT", price: 43284.50, change: 2.45, volume: "28.5B", lastUpdate: Date.now() },
-  "ETH/USDT": { symbol: "ETH/USDT", price: 2298.45, change: 1.82, volume: "14.2B", lastUpdate: Date.now() },
-  "BNB/USDT": { symbol: "BNB/USDT", price: 312.85, change: -0.54, volume: "1.8B", lastUpdate: Date.now() },
-  "SOL/USDT": { symbol: "SOL/USDT", price: 99.20, change: 4.12, volume: "2.1B", lastUpdate: Date.now() },
+  "BTC/USDT": { symbol: "BTC/USDT", price: 0, change: 0, volume: "—", lastUpdate: 0 },
+  "ETH/USDT": { symbol: "ETH/USDT", price: 0, change: 0, volume: "—", lastUpdate: 0 },
+  "BNB/USDT": { symbol: "BNB/USDT", price: 0, change: 0, volume: "—", lastUpdate: 0 },
+  "SOL/USDT": { symbol: "SOL/USDT", price: 0, change: 0, volume: "—", lastUpdate: 0 },
 };
+
+const WS_URL = `wss://dlveppmpsaosloyiiema.supabase.co/functions/v1/binance-prices`;
+const REST_URL = `https://dlveppmpsaosloyiiema.supabase.co/functions/v1/binance-prices`;
 
 export const useLivePrices = () => {
   const [prices, setPrices] = useState<Record<string, LivePrice>>(INITIAL_PRICES);
   const [isConnected, setIsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    setIsConnected(true);
-
-    // Simulate live price updates every 2 seconds
-    const interval = setInterval(() => {
-      setPrices((prev) => {
-        const updated = { ...prev };
-        Object.keys(updated).forEach((symbol) => {
-          const currentPrice = updated[symbol].price;
-          const volatility = symbol.includes("BTC") ? 50 : symbol.includes("ETH") ? 10 : 2;
-          const priceChange = (Math.random() - 0.5) * volatility;
-          const newPrice = Math.max(currentPrice + priceChange, 0.01);
-          const changePercent = ((newPrice - currentPrice) / currentPrice) * 100;
-          
-          updated[symbol] = {
-            ...updated[symbol],
-            price: newPrice,
-            change: updated[symbol].change + changePercent * 0.1,
-            lastUpdate: Date.now(),
-          };
+  // Fetch initial prices via REST
+  const fetchInitialPrices = useCallback(async () => {
+    try {
+      const response = await fetch(REST_URL);
+      const data = await response.json();
+      
+      if (data.prices) {
+        const priceMap: Record<string, LivePrice> = {};
+        data.prices.forEach((p: LivePrice) => {
+          priceMap[p.symbol] = p;
         });
-        return updated;
-      });
-    }, 2000);
+        setPrices((prev) => ({ ...prev, ...priceMap }));
+      }
+    } catch (error) {
+      console.error("Failed to fetch initial prices:", error);
+    }
+  }, []);
 
-    return () => {
-      clearInterval(interval);
+  // Connect to WebSocket
+  const connect = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    console.log("Connecting to Binance price feed...");
+    const ws = new WebSocket(WS_URL);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("Connected to live price feed");
+      setIsConnected(true);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "price_update" && data.symbol) {
+          setPrices((prev) => ({
+            ...prev,
+            [data.symbol]: {
+              symbol: data.symbol,
+              price: data.price,
+              change: data.change,
+              volume: data.volume,
+              lastUpdate: data.lastUpdate,
+            },
+          }));
+        }
+      } catch (error) {
+        console.error("Error parsing price data:", error);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log("Disconnected from price feed");
       setIsConnected(false);
+      wsRef.current = null;
+      
+      // Reconnect after 3 seconds
+      reconnectTimeoutRef.current = setTimeout(() => {
+        connect();
+      }, 3000);
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      ws.close();
     };
   }, []);
 
-  const getPrice = useCallback((symbol: string): LivePrice | null => {
-    return prices[symbol] || null;
-  }, [prices]);
+  useEffect(() => {
+    // Fetch initial prices first
+    fetchInitialPrices();
+    
+    // Then connect to WebSocket for live updates
+    connect();
+
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [connect, fetchInitialPrices]);
+
+  const getPrice = useCallback(
+    (symbol: string): LivePrice | null => {
+      return prices[symbol] || null;
+    },
+    [prices]
+  );
 
   return { prices, getPrice, isConnected };
 };
