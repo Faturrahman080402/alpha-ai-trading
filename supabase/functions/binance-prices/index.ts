@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const BINANCE_WS_URL = "wss://stream.binance.com:9443/ws";
-const SYMBOLS = ["btcusdt", "ethusdt", "bnbusdt", "solusdt"];
+const SYMBOLS = ["btcusdt", "ethusdt", "bnbusdt", "solusdt", "xrpusdt", "dogeusdt", "adausdt", "avaxusdt"];
 
 serve(async (req) => {
   const { headers } = req;
