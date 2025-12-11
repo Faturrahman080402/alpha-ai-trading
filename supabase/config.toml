@@ -1,1 +1,4 @@
 project_id = "dlveppmpsaosloyiiema"
+
+[functions.binance-prices]
+verify_jwt = false
