@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { Card } from "@/components/ui/card";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 
 interface PriceChartProps {
@@ -14,52 +13,82 @@ interface CandleData {
   time: number;
 }
 
+type Timeframe = "1M" | "5M" | "15M" | "1H" | "4H" | "1D";
+
+interface TimeframeConfig {
+  label: string;
+  candleCount: number;
+  intervalMs: number;
+  priceVariance: number;
+  wickMultiplier: number;
+}
+
+const TIMEFRAME_CONFIGS: Record<Timeframe, TimeframeConfig> = {
+  "1M": { label: "1m", candleCount: 60, intervalMs: 1000, priceVariance: 50, wickMultiplier: 0.3 },
+  "5M": { label: "5m", candleCount: 50, intervalMs: 2000, priceVariance: 100, wickMultiplier: 0.4 },
+  "15M": { label: "15m", candleCount: 48, intervalMs: 3000, priceVariance: 150, wickMultiplier: 0.5 },
+  "1H": { label: "1H", candleCount: 48, intervalMs: 5000, priceVariance: 250, wickMultiplier: 0.6 },
+  "4H": { label: "4H", candleCount: 42, intervalMs: 8000, priceVariance: 400, wickMultiplier: 0.7 },
+  "1D": { label: "1D", candleCount: 30, intervalMs: 10000, priceVariance: 800, wickMultiplier: 0.8 },
+};
+
+const TIMEFRAMES: Timeframe[] = ["1M", "5M", "15M", "1H", "4H", "1D"];
+
 const PriceChart = ({ symbol }: PriceChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [timeframe, setTimeframe] = useState("1H");
+  const [timeframe, setTimeframe] = useState<Timeframe>("1H");
   const [candleData, setCandleData] = useState<CandleData[]>([]);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
+  const config = useMemo(() => TIMEFRAME_CONFIGS[timeframe], [timeframe]);
+
+  const generateCandleData = useCallback((tf: Timeframe): CandleData[] => {
+    const tfConfig = TIMEFRAME_CONFIGS[tf];
+    const basePrice = 43000;
+    const data: CandleData[] = [];
+    let currentPrice = basePrice;
+
+    for (let i = 0; i < tfConfig.candleCount; i++) {
+      const open = currentPrice;
+      const change = (Math.random() - 0.48) * tfConfig.priceVariance;
+      const close = Math.max(open + change, basePrice * 0.9);
+      
+      const high = Math.max(open, close) + Math.random() * tfConfig.priceVariance * tfConfig.wickMultiplier;
+      const low = Math.min(open, close) - Math.random() * tfConfig.priceVariance * tfConfig.wickMultiplier;
+
+      data.push({
+        open,
+        high,
+        low,
+        close,
+        time: Date.now() - (tfConfig.candleCount - i) * 60000,
+      });
+      
+      currentPrice = close;
+    }
+    return data;
+  }, []);
+
+  // Regenerate data when timeframe changes
   useEffect(() => {
-    // Generate realistic candlestick data
-    const generateCandleData = () => {
-      const basePrice = 43000;
-      const data: CandleData[] = [];
-      let currentPrice = basePrice;
+    setCandleData(generateCandleData(timeframe));
+    setLastUpdate(new Date());
+  }, [timeframe, generateCandleData]);
 
-      for (let i = 0; i < 50; i++) {
-        const open = currentPrice;
-        const change = (Math.random() - 0.48) * 300;
-        const close = Math.max(open + change, basePrice * 0.95);
-        
-        const high = Math.max(open, close) + Math.random() * 150;
-        const low = Math.min(open, close) - Math.random() * 150;
-
-        data.push({
-          open,
-          high,
-          low,
-          close,
-          time: Date.now() - (50 - i) * 60000,
-        });
-        
-        currentPrice = close;
-      }
-      return data;
-    };
-
-    setCandleData(generateCandleData());
-
-    // Update with new candle every 3 seconds
+  // Update with new candle based on timeframe interval
+  useEffect(() => {
     const interval = setInterval(() => {
       setCandleData((prev) => {
+        if (prev.length === 0) return prev;
+        
         const newData = [...prev];
         const lastCandle = newData[newData.length - 1];
         const open = lastCandle.close;
-        const change = (Math.random() - 0.48) * 200;
+        const change = (Math.random() - 0.48) * config.priceVariance * 0.5;
         const close = Math.max(open + change, 40000);
         
-        const high = Math.max(open, close) + Math.random() * 100;
-        const low = Math.min(open, close) - Math.random() * 100;
+        const high = Math.max(open, close) + Math.random() * config.priceVariance * config.wickMultiplier * 0.5;
+        const low = Math.min(open, close) - Math.random() * config.priceVariance * config.wickMultiplier * 0.5;
 
         newData.push({
           open,
@@ -68,13 +97,16 @@ const PriceChart = ({ symbol }: PriceChartProps) => {
           close,
           time: Date.now(),
         });
-        return newData.slice(-50);
+        
+        return newData.slice(-config.candleCount);
       });
-    }, 3000);
+      setLastUpdate(new Date());
+    }, config.intervalMs);
 
     return () => clearInterval(interval);
-  }, [symbol]);
+  }, [config]);
 
+  // Draw chart
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || candleData.length === 0) return;
@@ -85,14 +117,12 @@ const PriceChart = ({ symbol }: PriceChartProps) => {
     const width = canvas.width;
     const height = canvas.height;
 
-    // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Calculate min and max prices from all OHLC values
     const allPrices = candleData.flatMap(c => [c.high, c.low]);
     const minPrice = Math.min(...allPrices);
     const maxPrice = Math.max(...allPrices);
-    const priceRange = maxPrice - minPrice;
+    const priceRange = maxPrice - minPrice || 1;
 
     // Draw grid
     ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
@@ -106,26 +136,21 @@ const PriceChart = ({ symbol }: PriceChartProps) => {
       ctx.stroke();
     }
 
-    // Calculate candle width and spacing
     const candleWidth = Math.max(2, (width / candleData.length) * 0.6);
     const candleSpacing = width / candleData.length;
 
-    // Draw candlesticks
     candleData.forEach((candle, index) => {
       const x = index * candleSpacing + candleSpacing / 2;
       
-      // Calculate y positions
       const yHigh = height - ((candle.high - minPrice) / priceRange) * height;
       const yLow = height - ((candle.low - minPrice) / priceRange) * height;
       const yOpen = height - ((candle.open - minPrice) / priceRange) * height;
       const yClose = height - ((candle.close - minPrice) / priceRange) * height;
 
-      // Determine candle color (green for bullish, red for bearish)
       const isBullish = candle.close >= candle.open;
       const color = isBullish ? "rgba(34, 197, 94, 0.9)" : "rgba(239, 68, 68, 0.9)";
       const borderColor = isBullish ? "rgba(34, 197, 94, 1)" : "rgba(239, 68, 68, 1)";
 
-      // Draw wick (high-low line)
       ctx.strokeStyle = borderColor;
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -133,14 +158,12 @@ const PriceChart = ({ symbol }: PriceChartProps) => {
       ctx.lineTo(x, yLow);
       ctx.stroke();
 
-      // Draw candle body (open-close rectangle)
       const bodyTop = Math.min(yOpen, yClose);
-      const bodyHeight = Math.abs(yClose - yOpen) || 1; // Minimum height of 1px for doji candles
+      const bodyHeight = Math.abs(yClose - yOpen) || 1;
       
       ctx.fillStyle = color;
       ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
       
-      // Draw candle border
       ctx.strokeStyle = borderColor;
       ctx.lineWidth = 1;
       ctx.strokeRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
@@ -148,31 +171,46 @@ const PriceChart = ({ symbol }: PriceChartProps) => {
 
   }, [candleData]);
 
+  const getTimeSinceUpdate = () => {
+    const seconds = Math.floor((Date.now() - lastUpdate.getTime()) / 1000);
+    return seconds < 1 ? "now" : `${seconds}s ago`;
+  };
+
   return (
     <div>
-      <div className="flex gap-2 mb-4">
-        {["1M", "5M", "15M", "1H", "4H", "1D"].map((tf) => (
-          <Button
-            key={tf}
-            variant={timeframe === tf ? "default" : "outline"}
-            size="sm"
-            onClick={() => setTimeframe(tf)}
-            className="text-xs"
-          >
-            {tf}
-          </Button>
-        ))}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex gap-1 bg-muted/50 p-1 rounded-lg">
+          {TIMEFRAMES.map((tf) => (
+            <Button
+              key={tf}
+              variant={timeframe === tf ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setTimeframe(tf)}
+              className={`text-xs px-3 py-1 h-7 transition-all ${
+                timeframe === tf 
+                  ? "bg-primary text-primary-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              {TIMEFRAME_CONFIGS[tf].label}
+            </Button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            Live
+          </span>
+          <span>• Updated {getTimeSinceUpdate()}</span>
+        </div>
       </div>
       <div className="relative">
         <canvas
           ref={canvasRef}
           width={600}
           height={300}
-          className="w-full h-[300px] rounded-lg"
+          className="w-full h-[300px] rounded-lg bg-card/50"
         />
-        <div className="absolute top-2 right-2 text-xs text-muted-foreground">
-          Live • Updated 2s ago
-        </div>
       </div>
     </div>
   );
