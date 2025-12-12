@@ -20,12 +20,16 @@ const ActiveTrades = () => {
     const currentPrice = prices[trade.symbol]?.price ?? Number(trade.entry_price);
     const multiplier = trade.trade_type === "buy" ? 1 : -1;
     const profitLoss = (currentPrice - Number(trade.entry_price)) * Number(trade.quantity) * multiplier;
+    const entryAmount = Number(trade.entry_price) * Number(trade.quantity);
 
     try {
       await closeTrade.mutateAsync({
         tradeId: trade.id,
         exitPrice: currentPrice,
         profitLoss,
+        portfolioId: trade.portfolio_id,
+        isDemo: trade.is_demo,
+        entryAmount,
       });
     } finally {
       setClosingTradeId(null);
