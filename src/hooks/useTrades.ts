@@ -55,12 +55,29 @@ export const useCreateTrade = () => {
       trade_type: "buy" | "sell";
       entry_price: number;
       quantity: number;
+      amount: number;
       stop_loss?: number;
       take_profit?: number;
       is_demo: boolean;
     }) => {
       if (!user) throw new Error("Not authenticated");
 
+      // First, get the current portfolio balance
+      const { data: portfolio, error: portfolioError } = await supabase
+        .from("portfolios")
+        .select("*")
+        .eq("id", trade.portfolio_id)
+        .single();
+
+      if (portfolioError) throw portfolioError;
+
+      const currentBalance = trade.is_demo ? portfolio.demo_balance : portfolio.balance;
+      
+      if (trade.amount > currentBalance) {
+        throw new Error("Insufficient balance");
+      }
+
+      // Create the trade
       const { data, error } = await supabase
         .from("trades")
         .insert({
@@ -79,10 +96,23 @@ export const useCreateTrade = () => {
         .single();
 
       if (error) throw error;
+
+      // Deduct the amount from the portfolio balance
+      const newBalance = currentBalance - trade.amount;
+      const updateField = trade.is_demo ? { demo_balance: newBalance } : { balance: newBalance };
+      
+      const { error: updateError } = await supabase
+        .from("portfolios")
+        .update(updateField)
+        .eq("id", trade.portfolio_id);
+
+      if (updateError) throw updateError;
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["trades", "active", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio", user?.id] });
       toast.success("Trade opened successfully!");
     },
     onError: (error) => {
@@ -96,7 +126,24 @@ export const useCloseTrade = () => {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ tradeId, exitPrice, profitLoss }: { tradeId: string; exitPrice: number; profitLoss: number }) => {
+    mutationFn: async ({ tradeId, exitPrice, profitLoss, portfolioId, isDemo, entryAmount }: { 
+      tradeId: string; 
+      exitPrice: number; 
+      profitLoss: number;
+      portfolioId: string;
+      isDemo: boolean;
+      entryAmount: number;
+    }) => {
+      // First, get the current portfolio balance
+      const { data: portfolio, error: portfolioError } = await supabase
+        .from("portfolios")
+        .select("*")
+        .eq("id", portfolioId)
+        .single();
+
+      if (portfolioError) throw portfolioError;
+
+      // Close the trade
       const { data, error } = await supabase
         .from("trades")
         .update({
@@ -110,10 +157,28 @@ export const useCloseTrade = () => {
         .single();
 
       if (error) throw error;
+
+      // Add back the original amount plus profit/loss to the portfolio
+      const currentBalance = isDemo ? portfolio.demo_balance : portfolio.balance;
+      const newBalance = currentBalance + entryAmount + profitLoss;
+      const updateField = isDemo ? { demo_balance: newBalance } : { balance: newBalance };
+      
+      // Also update total_profit_loss
+      const { error: updateError } = await supabase
+        .from("portfolios")
+        .update({
+          ...updateField,
+          total_profit_loss: portfolio.total_profit_loss + profitLoss,
+        })
+        .eq("id", portfolioId);
+
+      if (updateError) throw updateError;
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["trades", "active", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio", user?.id] });
       toast.success("Trade closed successfully!");
     },
     onError: (error) => {

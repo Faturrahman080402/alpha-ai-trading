@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Brain, Zap, Shield, BarChart3, Wallet, LogIn, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import PriceChart from "@/components/trading/PriceChart";
+import ChartPriceDetails from "@/components/trading/ChartPriceDetails";
 import PortfolioOverview from "@/components/trading/PortfolioOverview";
 import AIPredictions from "@/components/trading/AIPredictions";
 import ActiveTrades from "@/components/trading/ActiveTrades";
@@ -114,7 +115,16 @@ const Index = () => {
                   </p>
                 </div>
               </div>
-              <PriceChart symbol={selectedAsset} />
+              
+              {/* Chart with Price Details Side Panel */}
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <PriceChart symbol={selectedAsset} />
+                </div>
+                <div className="w-48 hidden xl:block">
+                  <ChartPriceDetails symbol={selectedAsset} currentPrice={currentPrice} />
+                </div>
+              </div>
             </Card>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

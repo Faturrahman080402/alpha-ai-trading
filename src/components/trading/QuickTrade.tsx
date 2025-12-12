@@ -48,7 +48,15 @@ const QuickTrade = ({ symbol = "BTC/USDT" }: QuickTradeProps) => {
       return;
     }
 
-    const positionSize = parseFloat(amount) * parseFloat(leverage);
+    const tradeAmount = parseFloat(amount);
+    const currentBalance = isDemo ? portfolio.demo_balance : portfolio.balance;
+
+    if (tradeAmount > currentBalance) {
+      toast.error("Insufficient balance", { description: `Available: $${currentBalance.toLocaleString()}` });
+      return;
+    }
+
+    const positionSize = tradeAmount * parseFloat(leverage);
     const quantity = positionSize / currentPrice;
 
     try {
@@ -58,6 +66,7 @@ const QuickTrade = ({ symbol = "BTC/USDT" }: QuickTradeProps) => {
         trade_type: side,
         entry_price: currentPrice,
         quantity,
+        amount: tradeAmount,
         is_demo: isDemo,
       });
     } catch (error) {
