@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, TrendingDown, Zap, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Zap, Loader2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useCreateTrade } from "@/hooks/useTrades";
 import { usePortfolio } from "@/hooks/usePortfolio";
@@ -20,6 +20,15 @@ const currentPrices: Record<string, number> = {
   "XRP/USDT": 0.62,
 };
 
+const DURATION_OPTIONS = [
+  { label: "1m", value: 60 },
+  { label: "5m", value: 300 },
+  { label: "15m", value: 900 },
+  { label: "1H", value: 3600 },
+  { label: "4H", value: 14400 },
+  { label: "1D", value: 86400 },
+];
+
 interface QuickTradeProps {
   symbol?: string;
 }
@@ -28,6 +37,7 @@ const QuickTrade = ({ symbol = "BTC/USDT" }: QuickTradeProps) => {
   const [amount, setAmount] = useState("1000");
   const [leverage, setLeverage] = useState("5");
   const [limitPrice, setLimitPrice] = useState("");
+  const [duration, setDuration] = useState<number | null>(300); // Default 5 minutes
   
   const { user } = useAuth();
   const { data: portfolio } = usePortfolio();
@@ -59,6 +69,11 @@ const QuickTrade = ({ symbol = "BTC/USDT" }: QuickTradeProps) => {
     const positionSize = tradeAmount * parseFloat(leverage);
     const quantity = positionSize / currentPrice;
 
+    // Calculate expiration time
+    const expiresAt = duration 
+      ? new Date(Date.now() + duration * 1000).toISOString() 
+      : undefined;
+
     try {
       await createTrade.mutateAsync({
         portfolio_id: portfolio.id,
@@ -68,7 +83,13 @@ const QuickTrade = ({ symbol = "BTC/USDT" }: QuickTradeProps) => {
         quantity,
         amount: tradeAmount,
         is_demo: isDemo,
+        expires_at: expiresAt,
       });
+      
+      if (duration) {
+        const durationLabel = DURATION_OPTIONS.find(d => d.value === duration)?.label || `${duration}s`;
+        toast.info(`Order will auto-close in ${durationLabel}`);
+      }
     } catch (error) {
       // Error is handled in the mutation
     }
@@ -123,6 +144,29 @@ const QuickTrade = ({ symbol = "BTC/USDT" }: QuickTradeProps) => {
                   </Button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <Label className="text-sm flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                Order Duration
+              </Label>
+              <div className="flex gap-1.5 mt-1 flex-wrap">
+                {DURATION_OPTIONS.map((opt) => (
+                  <Button
+                    key={opt.value}
+                    variant={duration === opt.value ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setDuration(opt.value)}
+                    className="flex-1 min-w-[40px] text-xs"
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Position auto-closes when duration ends
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 pt-2">

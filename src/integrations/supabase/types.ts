@@ -129,6 +129,7 @@ export type Database = {
           created_at: string
           entry_price: number
           exit_price: number | null
+          expires_at: string | null
           id: string
           is_demo: boolean
           portfolio_id: string
@@ -147,6 +148,7 @@ export type Database = {
           created_at?: string
           entry_price: number
           exit_price?: number | null
+          expires_at?: string | null
           id?: string
           is_demo?: boolean
           portfolio_id: string
@@ -165,6 +167,7 @@ export type Database = {
           created_at?: string
           entry_price?: number
           exit_price?: number | null
+          expires_at?: string | null
           id?: string
           is_demo?: boolean
           portfolio_id?: string

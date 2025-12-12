@@ -20,6 +20,7 @@ export interface Trade {
   ai_recommended: boolean;
   created_at: string;
   closed_at: string | null;
+  expires_at: string | null;
 }
 
 export const useActiveTrades = () => {
@@ -59,6 +60,7 @@ export const useCreateTrade = () => {
       stop_loss?: number;
       take_profit?: number;
       is_demo: boolean;
+      expires_at?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
 
@@ -91,6 +93,7 @@ export const useCreateTrade = () => {
           stop_loss: trade.stop_loss,
           take_profit: trade.take_profit,
           is_demo: trade.is_demo,
+          expires_at: trade.expires_at,
         })
         .select()
         .single();

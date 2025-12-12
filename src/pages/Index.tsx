@@ -16,6 +16,7 @@ import { usePortfolio } from "@/hooks/usePortfolio";
 import { useProfile } from "@/hooks/useProfile";
 import { useRealtimeTrades } from "@/hooks/useRealtimeTrades";
 import { useLivePrices } from "@/hooks/useLivePrices";
+import { useTradeExpiration } from "@/hooks/useTradeExpiration";
 
 const Index = () => {
   const [selectedAsset, setSelectedAsset] = useState("BTC/USDT");
@@ -26,6 +27,9 @@ const Index = () => {
   
   // Enable realtime trade updates
   useRealtimeTrades();
+  
+  // Enable auto-close for trades with duration
+  useTradeExpiration();
 
   const isDemo = profile?.trading_mode === "demo";
   const balance = isDemo ? portfolio?.demo_balance : portfolio?.balance;
