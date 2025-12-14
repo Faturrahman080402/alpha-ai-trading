@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import PriceChart from "@/components/trading/PriceChart";
 import ChartPriceDetails from "@/components/trading/ChartPriceDetails";
 import PortfolioOverview from "@/components/trading/PortfolioOverview";
+import TradingModeSwitch from "@/components/trading/TradingModeSwitch";
 import AIPredictions from "@/components/trading/AIPredictions";
 import ActiveTrades from "@/components/trading/ActiveTrades";
 import MarketOverview from "@/components/trading/MarketOverview";
@@ -91,6 +92,7 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column - Portfolio & AI */}
           <div className="lg:col-span-3 space-y-6">
+            <TradingModeSwitch />
             <PortfolioOverview />
             <AIPredictions />
           </div>

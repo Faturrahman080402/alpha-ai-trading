@@ -61,3 +61,25 @@ export const useUpdatePortfolioBalance = () => {
     },
   });
 };
+
+export const useResetDemoBalance = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ portfolioId, amount }: { portfolioId: string; amount: number }) => {
+      const { data, error } = await supabase
+        .from("portfolios")
+        .update({ demo_balance: amount })
+        .eq("id", portfolioId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["portfolio", user?.id] });
+    },
+  });
+};
