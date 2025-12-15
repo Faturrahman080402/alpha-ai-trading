@@ -8,6 +8,7 @@ import PriceChart from "@/components/trading/PriceChart";
 import ChartPriceDetails from "@/components/trading/ChartPriceDetails";
 import PortfolioOverview from "@/components/trading/PortfolioOverview";
 import TradingModeSwitch from "@/components/trading/TradingModeSwitch";
+import WalletManager from "@/components/trading/WalletManager";
 import AIPredictions from "@/components/trading/AIPredictions";
 import ActiveTrades from "@/components/trading/ActiveTrades";
 import MarketOverview from "@/components/trading/MarketOverview";
@@ -94,6 +95,7 @@ const Index = () => {
           <div className="lg:col-span-3 space-y-6">
             <TradingModeSwitch />
             <PortfolioOverview />
+            <WalletManager />
             <AIPredictions />
           </div>
 

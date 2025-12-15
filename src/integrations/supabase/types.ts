@@ -190,6 +190,45 @@ export type Database = {
           },
         ]
       }
+      transactions: {
+        Row: {
+          amount: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          is_demo: boolean
+          method: string
+          reference_id: string | null
+          status: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_demo?: boolean
+          method?: string
+          reference_id?: string | null
+          status?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_demo?: boolean
+          method?: string
+          reference_id?: string | null
+          status?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
