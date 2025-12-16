@@ -38,6 +38,7 @@ export const useTransactions = () => {
   });
 };
 
+// Mock deposit for demo accounts
 export const useDeposit = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -55,72 +56,108 @@ export const useDeposit = () => {
     }) => {
       if (!user) throw new Error("Not authenticated");
       
-      const referenceId = `DANA-DEP-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+      // Demo mode uses mock deposit
+      if (isDemo) {
+        const referenceId = `DEMO-DEP-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+        
+        const { data: transaction, error: txError } = await supabase
+          .from("transactions")
+          .insert({
+            user_id: user.id,
+            type: "deposit",
+            amount,
+            method: "DANA",
+            status: "processing",
+            is_demo: true,
+            reference_id: referenceId,
+          })
+          .select()
+          .single();
+
+        if (txError) throw txError;
+
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const { data: portfolio, error: getError } = await supabase
+          .from("portfolios")
+          .select("demo_balance")
+          .eq("id", portfolioId)
+          .single();
+
+        if (getError) throw getError;
+
+        const currentBalance = Number(portfolio.demo_balance) || 0;
+        const newBalance = currentBalance + amount;
+
+        const { error: updateError } = await supabase
+          .from("portfolios")
+          .update({ demo_balance: newBalance })
+          .eq("id", portfolioId);
+
+        if (updateError) throw updateError;
+
+        const { error: txUpdateError } = await supabase
+          .from("transactions")
+          .update({ 
+            status: "success",
+            completed_at: new Date().toISOString()
+          })
+          .eq("id", transaction.id);
+
+        if (txUpdateError) throw txUpdateError;
+
+        return { transaction, newBalance, isDemo: true };
+      }
       
-      // Create transaction record
-      const { data: transaction, error: txError } = await supabase
-        .from("transactions")
-        .insert({
-          user_id: user.id,
-          type: "deposit",
-          amount,
-          method: "DANA",
-          status: "processing",
-          is_demo: isDemo,
-          reference_id: referenceId,
-        })
-        .select()
-        .single();
-
-      if (txError) throw txError;
-
-      // Simulate payment gateway processing (mock)
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Update portfolio balance
-      const balanceField = isDemo ? "demo_balance" : "balance";
-      const { data: portfolio, error: getError } = await supabase
-        .from("portfolios")
-        .select(balanceField)
-        .eq("id", portfolioId)
-        .single();
-
-      if (getError) throw getError;
-
-      const currentBalance = Number(portfolio[balanceField]) || 0;
-      const newBalance = currentBalance + amount;
-
-      const { error: updateError } = await supabase
-        .from("portfolios")
-        .update({ [balanceField]: newBalance })
-        .eq("id", portfolioId);
-
-      if (updateError) throw updateError;
-
-      // Mark transaction as success
-      const { error: txUpdateError } = await supabase
-        .from("transactions")
-        .update({ 
-          status: "success",
-          completed_at: new Date().toISOString()
-        })
-        .eq("id", transaction.id);
-
-      if (txUpdateError) throw txUpdateError;
-
-      return { transaction, newBalance };
+      // Real mode - handled by Midtrans in WalletManager
+      throw new Error("Real deposits should use Midtrans flow");
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["portfolio", user?.id] });
       queryClient.invalidateQueries({ queryKey: ["transactions", user?.id] });
       toast({
         title: "Deposit Successful",
-        description: `$${data.transaction.amount.toLocaleString()} has been added to your account via DANA.`,
+        description: `$${data.transaction.amount.toLocaleString()} has been added to your demo account.`,
       });
     },
     onError: (error) => {
       toast({
         title: "Deposit Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+};
+
+// Real deposit using Midtrans
+export const useMidtransDeposit = () => {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ 
+      amount, 
+      portfolioId 
+    }: { 
+      amount: number; 
+      portfolioId: string;
+    }) => {
+      const { data, error } = await supabase.functions.invoke('midtrans-create-transaction', {
+        body: {
+          amount,
+          type: 'deposit',
+          portfolioId,
+        },
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      
+      return data;
+    },
+    onError: (error) => {
+      toast({
+        title: "Payment Error",
         description: error.message,
         variant: "destructive",
       });
@@ -149,9 +186,8 @@ export const useWithdraw = () => {
       if (amount > currentBalance) throw new Error("Insufficient balance");
       if (amount < 10) throw new Error("Minimum withdrawal is $10");
       
-      const referenceId = `DANA-WTH-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+      const referenceId = `${isDemo ? 'DEMO' : 'DANA'}-WTH-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
       
-      // Create transaction record
       const { data: transaction, error: txError } = await supabase
         .from("transactions")
         .insert({
@@ -168,10 +204,8 @@ export const useWithdraw = () => {
 
       if (txError) throw txError;
 
-      // Simulate payment gateway processing (mock)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Update portfolio balance
       const balanceField = isDemo ? "demo_balance" : "balance";
       const newBalance = currentBalance - amount;
 
@@ -182,7 +216,6 @@ export const useWithdraw = () => {
 
       if (updateError) throw updateError;
 
-      // Mark transaction as success
       const { error: txUpdateError } = await supabase
         .from("transactions")
         .update({ 
