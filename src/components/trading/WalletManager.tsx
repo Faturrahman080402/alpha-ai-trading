@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,42 +20,147 @@ import {
   CheckCircle2, 
   XCircle, 
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePortfolio } from "@/hooks/usePortfolio";
 import { useProfile } from "@/hooks/useProfile";
-import { useTransactions, useDeposit, useWithdraw, Transaction } from "@/hooks/useTransactions";
+import { useTransactions, useDeposit, useWithdraw, useMidtransDeposit, Transaction } from "@/hooks/useTransactions";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+
+declare global {
+  interface Window {
+    snap?: {
+      pay: (token: string, options: {
+        onSuccess?: (result: unknown) => void;
+        onPending?: (result: unknown) => void;
+        onError?: (result: unknown) => void;
+        onClose?: () => void;
+      }) => void;
+    };
+  }
+}
 
 const WalletManager = () => {
   const { user } = useAuth();
-  const { data: portfolio } = usePortfolio();
+  const { data: portfolio, refetch: refetchPortfolio } = usePortfolio();
   const { data: profile } = useProfile();
-  const { data: transactions } = useTransactions();
+  const { data: transactions, refetch: refetchTransactions } = useTransactions();
   const deposit = useDeposit();
+  const midtransDeposit = useMidtransDeposit();
   const withdraw = useWithdraw();
+  const { toast } = useToast();
 
   const [depositAmount, setDepositAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [showDepositConfirm, setShowDepositConfirm] = useState(false);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+  const [snapLoaded, setSnapLoaded] = useState(false);
 
   const isDemo = profile?.trading_mode === "demo";
   const balance = isDemo ? portfolio?.demo_balance : portfolio?.balance;
 
-  const handleDeposit = () => {
-    if (!portfolio) return;
-    deposit.mutate({
-      amount: Number(depositAmount),
-      isDemo: isDemo ?? true,
-      portfolioId: portfolio.id,
-    }, {
-      onSuccess: () => {
-        setDepositAmount("");
-        setShowDepositConfirm(false);
+  // Load Midtrans Snap script for real transactions
+  useEffect(() => {
+    const loadMidtransConfig = async () => {
+      if (!isDemo && !snapLoaded) {
+        try {
+          const { data, error } = await supabase.functions.invoke('midtrans-config');
+          
+          if (error || !data?.clientKey) {
+            console.error('Failed to load Midtrans config:', error);
+            return;
+          }
+          
+          const script = document.createElement('script');
+          script.src = data.snapUrl;
+          script.setAttribute('data-client-key', data.clientKey);
+          script.onload = () => setSnapLoaded(true);
+          document.body.appendChild(script);
+        } catch (err) {
+          console.error('Error loading Midtrans:', err);
+        }
       }
-    });
+    };
+    
+    loadMidtransConfig();
+  }, [isDemo, snapLoaded]);
+
+  const handleDeposit = async () => {
+    if (!portfolio) return;
+    
+    if (isDemo) {
+      // Demo mode - use mock deposit
+      deposit.mutate({
+        amount: Number(depositAmount),
+        isDemo: true,
+        portfolioId: portfolio.id,
+      }, {
+        onSuccess: () => {
+          setDepositAmount("");
+          setShowDepositConfirm(false);
+        }
+      });
+    } else {
+      // Real mode - use Midtrans
+      const amountInIDR = Number(depositAmount) * 15500; // Convert USD to IDR (approximate rate)
+      
+      midtransDeposit.mutate({
+        amount: Math.round(amountInIDR),
+        portfolioId: portfolio.id,
+      }, {
+        onSuccess: (data) => {
+          setShowDepositConfirm(false);
+          
+          if (data.redirect_url && !window.snap) {
+            // Fallback to redirect if Snap not loaded
+            window.open(data.redirect_url, '_blank');
+            toast({
+              title: "Payment Initiated",
+              description: "Complete your payment in the new window.",
+            });
+          } else if (window.snap && data.token) {
+            // Use Snap popup
+            window.snap.pay(data.token, {
+              onSuccess: () => {
+                toast({
+                  title: "Payment Successful",
+                  description: "Your deposit is being processed.",
+                });
+                refetchTransactions();
+                refetchPortfolio();
+                setDepositAmount("");
+              },
+              onPending: () => {
+                toast({
+                  title: "Payment Pending",
+                  description: "Please complete your payment.",
+                });
+                refetchTransactions();
+              },
+              onError: () => {
+                toast({
+                  title: "Payment Failed",
+                  description: "Your payment could not be processed.",
+                  variant: "destructive",
+                });
+                refetchTransactions();
+              },
+              onClose: () => {
+                toast({
+                  title: "Payment Cancelled",
+                  description: "You closed the payment window.",
+                });
+                refetchTransactions();
+              }
+            });
+          }
+        }
+      });
+    }
   };
 
   const handleWithdraw = () => {
@@ -111,6 +216,8 @@ const WalletManager = () => {
     );
   }
 
+  const isPending = isDemo ? deposit.isPending : midtransDeposit.isPending;
+
   return (
     <>
       <Card className="p-6 bg-card border-border">
@@ -118,6 +225,7 @@ const WalletManager = () => {
           <Wallet className="w-5 h-5 text-primary" />
           <h3 className="text-lg font-semibold">Wallet</h3>
           {isDemo && <Badge variant="secondary" className="text-xs">Demo</Badge>}
+          {!isDemo && <Badge variant="default" className="text-xs bg-green-600">Real</Badge>}
         </div>
 
         <Tabs defaultValue="deposit" className="w-full">
@@ -136,9 +244,13 @@ const WalletManager = () => {
                   className="h-6"
                 />
                 <span className="font-semibold text-blue-400">DANA E-Wallet</span>
+                {!isDemo && <Badge variant="outline" className="text-xs">Powered by Midtrans</Badge>}
               </div>
               <p className="text-sm text-muted-foreground">
-                Top up your trading balance via DANA
+                {isDemo 
+                  ? "Simulate deposit for demo trading" 
+                  : "Top up your real trading balance via DANA"
+                }
               </p>
             </div>
 
@@ -164,15 +276,20 @@ const WalletManager = () => {
                   </Button>
                 ))}
               </div>
+              {!isDemo && depositAmount && (
+                <p className="text-xs text-muted-foreground">
+                  ≈ Rp {(Number(depositAmount) * 15500).toLocaleString('id-ID')} (approximate)
+                </p>
+              )}
             </div>
 
             <Button 
               className="w-full" 
-              disabled={!depositAmount || Number(depositAmount) <= 0}
+              disabled={!depositAmount || Number(depositAmount) <= 0 || isPending}
               onClick={() => setShowDepositConfirm(true)}
             >
               <ArrowDownToLine className="w-4 h-4 mr-2" />
-              Deposit via DANA
+              {isDemo ? "Deposit (Demo)" : "Deposit via DANA"}
             </Button>
           </TabsContent>
 
@@ -285,7 +402,10 @@ const WalletManager = () => {
           <DialogHeader>
             <DialogTitle>Confirm Deposit</DialogTitle>
             <DialogDescription>
-              You are about to deposit funds via DANA e-wallet.
+              {isDemo 
+                ? "You are about to add demo funds."
+                : "You will be redirected to DANA for payment."
+              }
             </DialogDescription>
           </DialogHeader>
           
@@ -294,9 +414,18 @@ const WalletManager = () => {
               <span className="text-muted-foreground">Amount</span>
               <span className="font-bold font-mono">${Number(depositAmount).toLocaleString()}</span>
             </div>
+            {!isDemo && (
+              <div className="flex justify-between p-4 bg-muted/50 rounded-lg">
+                <span className="text-muted-foreground">Amount (IDR)</span>
+                <span className="font-mono">Rp {(Number(depositAmount) * 15500).toLocaleString('id-ID')}</span>
+              </div>
+            )}
             <div className="flex justify-between p-4 bg-muted/50 rounded-lg">
               <span className="text-muted-foreground">Payment Method</span>
-              <span className="font-medium">DANA</span>
+              <span className="font-medium flex items-center gap-2">
+                DANA
+                {!isDemo && <ExternalLink className="w-3 h-3" />}
+              </span>
             </div>
             <div className="flex justify-between p-4 bg-muted/50 rounded-lg">
               <span className="text-muted-foreground">Account Type</span>
@@ -310,20 +439,28 @@ const WalletManager = () => {
                 This is a simulated deposit for demo trading purposes.
               </p>
             )}
+            
+            {!isDemo && (
+              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <p className="text-sm text-blue-400">
+                  You will be redirected to Midtrans secure payment page to complete your DANA payment.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDepositConfirm(false)}>
               Cancel
             </Button>
-            <Button onClick={handleDeposit} disabled={deposit.isPending}>
-              {deposit.isPending ? (
+            <Button onClick={handleDeposit} disabled={isPending}>
+              {isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Processing...
                 </>
               ) : (
-                "Confirm Deposit"
+                isDemo ? "Confirm Deposit" : "Pay with DANA"
               )}
             </Button>
           </DialogFooter>
